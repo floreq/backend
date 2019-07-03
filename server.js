@@ -14,12 +14,10 @@ const corsOptions = {
 };
 // Ogolna konfiguracja app
 app.use(cors(corsOptions));
-app.use(bodyParser());
+app.use(bodyParser.json());
 
 // Zapytania
 app.get("/tasks", (req, res) => {
-  const tasks = [];
-
   // Podlaczenie bazy
   let db = new sqlite3.Database("frontendDB.sqlite3", err => {
     if (err) {
@@ -28,8 +26,10 @@ app.get("/tasks", (req, res) => {
   });
 
   const sql = "SELECT * FROM tasks ORDER BY id DESC";
-
-  const retrunAllRows = new Promise((resolve, reject) => {
+  // Pobranie z bazy calej tabeli
+  const retrunAllRows = new Promise(resolve => {
+    const tasks = [];
+    // Przepisanie tabeli do tablicy
     db.all(sql, [], (err, rows) => {
       if (err) {
         throw err;
@@ -65,65 +65,64 @@ app.get("/tasks", (req, res) => {
 });
 
 app.post("/tasks", urlencodedParser, (req, res) => {
-  // Dodac walidacje
-  // Dodac w obiekcie created_at
-  console.log(req.body);
-
-  // Tutaj powinien po odebraniu zapytania odsylac juz poprawnie zapisanego jsona (z dodanym polem id, itp.)
-  const tasks = [];
-
-  // Podlaczenie bazy
-  let db = new sqlite3.Database("frontendDB.sqlite3", err => {
-    if (err) {
-      return console.error("err.message");
-    }
-  });
-
-  const rb = req.body;
-  const createdAt = new Date();
-
-  db.run(
-    `INSERT INTO tasks (action_date, created_at, task, comment, expense, quantity, metal_type, origin) VALUES ('${
-      rb.actionDate
-    }', '${createdAt}', '${rb.task}', '${rb.comment}', '${rb.expense}', '${
-      rb.quantity
-    }', '${rb.metalType}', "Sklep 1")`
-  );
-
-  const sql = "SELECT * FROM tasks ORDER BY id DESC";
-
-  const retrunAllRows = new Promise((resolve, reject) => {
-    db.all(sql, [], (err, rows) => {
+  const connection = new Promise(resolve => {
+    // Podlaczenie sie do bazy
+    let db = new sqlite3.Database("frontendDB.sqlite3", err => {
       if (err) {
-        throw err;
+        return console.error("err.message");
       }
-      rows.forEach(row => {
-        tasks.push({
-          id: row.id,
-          actionDate: row.action_date,
-          createdAt: row.created_at,
-          deletedAt: row.deleted_at,
-          task: row.task,
-          comment: row.comment,
-          expense: row.expense,
-          quantity: row.quantity,
-          metalType: row.metal_type
-        });
-      });
-      resolve(tasks);
     });
-  });
 
-  // Close the database connection
-  db.close(err => {
-    if (err) {
-      return console.error(err.message);
-    }
-  });
+    // Dodac walidacje do req.body (dodatkowo zaokraglac do dwoch miejsc)!
+    const rb = req.body;
+    const createdAt = new Date();
+    // Dodanie do bazy rekordu
+    db.run(
+      `INSERT INTO tasks (action_date, created_at, task, comment, expense, quantity, metal_type, origin) VALUES ('${
+        rb.actionDate
+      }', '${createdAt}', '${rb.task}', '${rb.comment}', '${rb.expense}', '${
+        rb.quantity
+      }', '${rb.metalType}', "Sklep 1")`
+    );
+    resolve(db);
+  }).then(db => {
+    const sql = "SELECT * FROM tasks ORDER BY id DESC";
 
-  retrunAllRows.then(value => {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify(value));
+    // Pobranie z bazy calej tabeli
+    const returnAllRows = new Promise(resolve => {
+      const tasks = [];
+      // Przepisanie tabeli do tablicy
+      db.all(sql, [], (err, rows) => {
+        if (err) {
+          throw err;
+        }
+        rows.forEach(row => {
+          tasks.push({
+            id: row.id,
+            actionDate: row.action_date,
+            createdAt: row.created_at,
+            deletedAt: row.deleted_at,
+            task: row.task,
+            comment: row.comment,
+            expense: row.expense,
+            quantity: row.quantity,
+            metalType: row.metal_type
+          });
+        });
+        resolve(tasks);
+      });
+    }).then(tasks => {
+      // Close the database connection
+      db.close(err => {
+        if (err) {
+          return console.error(err.message);
+        }
+      });
+
+      // Odeslanie zaktualizowanych danych
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(tasks));
+    });
   });
 });
 
