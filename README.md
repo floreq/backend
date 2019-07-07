@@ -12,12 +12,19 @@ node server.js
 
 ## Możliwe zapytania do bazy
 
-Odpowiedzi są wysyłane w **pliku JSON**
+Żądania są odbierane w **formacie obiektu JavaScript**
+
+Odpowiedzi są wysyłane w **formacie pliku JSON**
 
 ### Zapytanie GET
 `"/tasks"`
 
 1. Zapytanie zwraca **wszystkie rekordy** z bazy.
+
+>Przykładowe żadanie
+```javascript
+{actionDate: "07.07.2019", task: "zakup", comment: "Test", expense: "1", quantity: "1", task: "zakup"}
+```
 
 >Przykładowa odpowiedź
 ```json
