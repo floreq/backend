@@ -5,6 +5,24 @@ const bodyParser = require("body-parser");
 const app = express();
 const port = 3001;
 
+// Przepisanie tabeli z bazy do tablicy
+function dbTableToArray(rows) {
+  const tasks = rows.map(row => {
+    return {
+      id: row.id,
+      actionDate: row.action_date,
+      createdAt: row.created_at,
+      deletedAt: row.deleted_at,
+      task: row.task,
+      comment: row.comment,
+      expense: row.expense,
+      quantity: row.quantity,
+      metalType: row.metal_type
+    };
+  });
+  return tasks;
+}
+
 function sendError(res, err) {
   console.error(err.message);
   console.trace();
@@ -27,11 +45,11 @@ app.use(urlencodedParser);
 // Polaczenie sie z baza z podanego pliku
 let db = new sqlite3.Database("frontendDB.sqlite3", err => {
   if (err) {
-    return console.error("err.message");
+    return console.error(err.message);
   }
 });
 
-// Zapytania
+// Zapytanie wyslajace cala liste tasks
 app.get("/tasks", (req, res) => {
   const sql = "SELECT * FROM tasks ORDER BY id DESC";
   // Pobranie z bazy calej tabeli
@@ -39,21 +57,7 @@ app.get("/tasks", (req, res) => {
     // Wykonanie operacji na tabeili
     db.all(sql, [], (err, rows) => {
       if (err === null) {
-        // Przepisanie tabeli do tablicy
-        const tasks = rows.map(row => {
-          return {
-            id: row.id,
-            actionDate: row.action_date,
-            createdAt: row.created_at,
-            deletedAt: row.deleted_at,
-            task: row.task,
-            comment: row.comment,
-            expense: row.expense,
-            quantity: row.quantity,
-            metalType: row.metal_type
-          };
-        });
-        resolve(tasks);
+        resolve(dbTableToArray(rows));
       } else {
         reject(err);
       }
@@ -67,13 +71,16 @@ app.get("/tasks", (req, res) => {
       sendError(res, err);
     });
 });
+
+// Zapytanie dopisujace dane do bazy
+// Dopisuje nowy rekord z dodaniem created_at
 app.post("/tasks", (req, res) => {
   new Promise((resolve, reject) => {
     // Dodac walidacje do req.body (dodatkowo zaokraglac do dwoch miejsc)!
     const rb = req.body;
-    const newInsertData = [
+    const newInsertRow = [
       rb.actionDate,
-      new Date(),
+      new Date().toString(),
       rb.task,
       rb.comment,
       rb.expense,
@@ -81,12 +88,12 @@ app.post("/tasks", (req, res) => {
       rb.metalType,
       "Sklep 1"
     ];
-    // W miejscu ?-ikow wpisywane sa elementy tablicy newInsertData w funcki db.run
+    // W miejscu ?-ikow wpisywane sa elementy tablicy newInsertRow w funcki db.run
     const sql =
       "INSERT INTO tasks (action_date, created_at, task, comment, expense, quantity, metal_type, origin) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
     // Dodanie do bazy rekordu
     // Music tutaj byc function(err) {...}, a nie (err) => {...}, poniewaz w drugim przypadku this.lsatID jest undefined
-    db.run(sql, newInsertData, function(err) {
+    db.run(sql, newInsertRow, function(err) {
       // Zwrocenie id z ostatnio dodanego rekordu
       if (err === null) {
         resolve(this.lastID);
@@ -97,7 +104,7 @@ app.post("/tasks", (req, res) => {
   })
     .then(lastRowId => {
       // Pobranie z bazy calej tabeli
-      new Promise(resolve => {
+      new Promise((resolve, reject) => {
         // W miejscu ? wpisywana jest wartosc lastRowId w funckji db.all
         const sql = "SELECT * FROM tasks WHERE id = ?";
         // Przepisanie tabeli do tablicy
@@ -105,20 +112,7 @@ app.post("/tasks", (req, res) => {
           if (err) {
             reject(err);
           } else {
-            const tasks = rows.map(row => {
-              return {
-                id: row.id,
-                actionDate: row.action_date,
-                createdAt: row.created_at,
-                deletedAt: row.deleted_at,
-                task: row.task,
-                comment: row.comment,
-                expense: row.expense,
-                quantity: row.quantity,
-                metalType: row.metal_type
-              };
-            });
-            resolve(tasks);
+            resolve(dbTableToArray(rows));
           }
         });
       })
@@ -135,28 +129,38 @@ app.post("/tasks", (req, res) => {
     });
 });
 
+// Zapytanie modyfikujace dane w bazie
+// Dodaje deleted_at
 app.delete("/tasks/:id", (req, res) => {
-  // Odczytanie z zapytania /:id
-  const reqId = req.params.id;
-
-  new Promise(resolve => {
-    const sql = `SELECT deleted_at FROM tasks WHERE id = '${reqId}'`;
+  new Promise((resolve, reject) => {
+    // Odczytanie z zapytania /:id
+    const reqId = req.params.id;
+    const sql = "SELECT deleted_at FROM tasks WHERE id = ?";
 
     // Sprawdzenie czy nie dodano wczesniej deleted_at
-    db.get(sql, [], (err, row) => {
+    db.get(sql, reqId, (err, row) => {
       if (err) {
-        return console.error(err.message);
+        reject(err);
       } else if (row.deleted_at === null) {
+        const updatedRow = [new Date().toString(), reqId];
+
         // Dodanie deleted_at
         db.run(
-          `UPDATE tasks SET deleted_at = '${new Date()}' WHERE id = '${reqId}'`
+          "UPDATE tasks SET deleted_at = ? WHERE id = ?",
+          updatedRow,
+          function(err) {
+            // Zwrocenie id z ostatnio dodanego rekordu
+            if (err === null) {
+              resolve(this.lastID);
+            } else {
+              reject(err);
+            }
+          }
         );
-        resolve(db);
-      } else {
-        resolve(db);
       }
     });
-  }).then(db => {
+  }).then(lastRowId => {
+    console.log(lastRowId);
     const sql = "SELECT * FROM tasks ORDER BY id DESC";
 
     // Pobranie z bazy calej tabeli
@@ -166,20 +170,7 @@ app.delete("/tasks/:id", (req, res) => {
         if (err) {
           throw err;
         }
-        const tasks = rows.map(row => {
-          return {
-            id: row.id,
-            actionDate: row.action_date,
-            createdAt: row.created_at,
-            deletedAt: row.deleted_at,
-            task: row.task,
-            comment: row.comment,
-            expense: row.expense,
-            quantity: row.quantity,
-            metalType: row.metal_type
-          };
-        });
-        resolve(tasks);
+        resolve(dbTableToArray(rows));
       });
     }).then(tasks => {
       // Odeslanie zaktualizowanych danych
@@ -187,7 +178,6 @@ app.delete("/tasks/:id", (req, res) => {
       res.end(JSON.stringify(tasks));
     });
   });
-  console.log(reqId);
 });
 
 const server = app.listen(port, () =>
