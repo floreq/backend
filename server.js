@@ -30,6 +30,80 @@ function sendError(res, err) {
   res.status(500).end(err.message);
 }
 
+function isValidDate(dateString) {
+  // Validates that the input string is a valid date formatted as "mm.dd.yyyy"
+  // First check for the pattern
+  if (!/^\d{1,2}\.\d{1,2}\.\d{4}$/.test(dateString)) return false;
+  // Parse the date parts to integers
+  var parts = dateString.split(".");
+  var day = parseInt(parts[0], 10);
+  var month = parseInt(parts[1], 10);
+  var year = parseInt(parts[2], 10);
+  // Check the ranges of month and year
+  if (year < 1000 || year > 3000 || month === 0 || month > 12) return false;
+  var monthLength = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  // Adjust for leap years
+  if (year % 400 === 0 || (year % 100 !== 0 && year % 4 === 0))
+    monthLength[1] = 29;
+  // Check the range of the day
+  return day > 0 && day <= monthLength[month - 1];
+}
+
+function isValidInsert(insertObject) {
+  // Mozliwe do wyboru tasks/metalTypes
+  const possibleTasks = ["zakup", "odbior", "zaliczka", "wplywy", "wydatki"];
+  const possibleMetalTypes = ["stalowy", "kolorowy"];
+  let valid = true;
+  let err;
+
+  for (let [key, v] of Object.entries(insertObject)) {
+    if (valid) {
+      switch (key) {
+        case "actionDate":
+          if (!(typeof v === "string" && isValidDate(v))) {
+            valid = false;
+            err = "Invalif actionDate";
+          }
+          break;
+        case "task":
+          if (!(typeof v === "string" && possibleTasks.includes(v))) {
+            valid = false;
+            err = "Invalif task";
+          }
+          break;
+        case "comment":
+          if (!(typeof v === "string")) {
+            valid = false;
+            err = "Invalif comment";
+          }
+          break;
+        case "expense":
+          if (!(typeof v === "string" && v !== "" && !isNaN(v))) {
+            valid = false;
+            err = "Invalif expense";
+          }
+          break;
+        case "quantity":
+          if (!(typeof v === "string" && !isNaN(v))) {
+            valid = false;
+            err = "Invalif quantity";
+          }
+          break;
+        case "metalType":
+          if (!(typeof v === "string" && possibleMetalTypes.includes(v))) {
+            valid = false;
+            err = "Invalif metalType";
+          }
+          break;
+        default:
+          valid = false;
+          err = "Invalif input";
+      }
+    }
+  }
+  return { ifValid: valid, message: err };
+}
+
 // "Rozpakowywanie" przychodzacych zapytan
 const urlencodedParser = bodyParser.urlencoded({ extended: false });
 // Whitelist adresow
@@ -78,29 +152,35 @@ app.post("/tasks", (req, res) => {
   new Promise((resolve, reject) => {
     // Dodac walidacje do req.body (dodatkowo zaokraglac do dwoch miejsc)!
     const rb = req.body;
-    const newInsertRow = [
-      rb.actionDate,
-      new Date().toString(),
-      rb.task,
-      rb.comment,
-      rb.expense,
-      rb.quantity,
-      rb.metalType,
-      "Sklep 1"
-    ];
-    // W miejscu ?-ikow wpisywane sa elementy tablicy newInsertRow w funcki db.run
-    const sql =
-      "INSERT INTO tasks (action_date, created_at, task, comment, expense, quantity, metal_type, origin) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-    // Dodanie do bazy rekordu
-    // Music tutaj byc function(err) {...}, a nie (err) => {...}, poniewaz w drugim przypadku this.lsatID jest undefined
-    db.run(sql, newInsertRow, function(err) {
-      // Zwrocenie id z ostatnio dodanego rekordu
-      if (err === null) {
-        resolve(this.lastID);
-      } else {
-        reject(err);
-      }
-    });
+    // Sprawdzenie walidacji otrzymanych danych
+    const validInfo = isValidInsert(rb);
+    if (validInfo.ifValid) {
+      const newInsertRow = [
+        rb.actionDate,
+        new Date().toString(),
+        rb.task,
+        rb.comment,
+        rb.expense,
+        rb.quantity,
+        rb.metalType,
+        "Sklep 1"
+      ];
+      // W miejscu ?-ikow wpisywane sa elementy tablicy newInsertRow w funcki db.run
+      const sql =
+        "INSERT INTO tasks (action_date, created_at, task, comment, expense, quantity, metal_type, origin) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+      // Dodanie do bazy rekordu
+      // Music tutaj byc function(err) {...}, a nie (err) => {...}, poniewaz w drugim przypadku this.lsatID jest undefined
+      db.run(sql, newInsertRow, function(err) {
+        // Zwrocenie id z ostatnio dodanego rekordu
+        if (err === null) {
+          resolve(this.lastID);
+        } else {
+          reject(err);
+        }
+      });
+    } else {
+      reject(validInfo);
+    }
   })
     .then(lastRowId => {
       // Pobranie z bazy calej tabeli
