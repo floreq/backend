@@ -6,9 +6,17 @@ node server.js
 ```
 
 ## Struktura tabeli w bazie
-| id  | action_date | created_at | deleted_at | task | comment | expense | quantity | metal_type | origin |
-| --- | ----------- | ---------- | ---------- | ---- | ------- | ------- | -------- | ---------- | ------ |
-| integer | text | text | text | text | text | integer | integer | text | text |
+1. Tasks
+
+| id  | action_date | created_at | deleted_at | task | comment | expense | quantity | metal_type | origin_id |
+| --- | ----------- | ---------- | ---------- | ---- | ------- | ------- | -------- | ---------- | --------- |
+| integer | text | text | text | text | text | integer | integer | text | integer |
+
+2. Origin
+
+| id  | name | 
+| --- | -----| 
+| integer | text |
 
 ## Możliwe zapytania do bazy
 
