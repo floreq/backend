@@ -24,7 +24,7 @@ node server.js
 
 Odpowiedzi są wysyłane w **formacie pliku JSON**
 
-### Zapytanie GET
+### Zapytania GET
 `"/tasks"`
 
 1. Zapytanie zwraca **wszystkie rekordy** z bazy.
@@ -39,6 +39,21 @@ Odpowiedzi są wysyłane w **formacie pliku JSON**
 [{"id": 1, "actionDate": "01.01.1000", "createdAt": "[data dodana przez zapytanie POST]", "deletedAt": "[data dodana przez zaptanie DELETE]", "task": "zakup", "comment": "","expense": 0,"quantity": 0,"metalType": "stalowy"},
 {"id": 2, "actionDate": "01.01.1000", "createdAt": "[data dodana przez zapytanie POST]", "deletedAt": "", "task": "zakup", "comment": "","expense": 0,"quantity": 0,"metalType": "stalowy"}]
 ```
+---
+
+`"/workplaces/:id"`
+
+1. Zapytanie zwraca **wybrane dane** z bazy:
+   - sume wydatków,
+   - sume przychodów,
+   - sume zakupionych metali (Income),
+   - sume odebranych metali (Collection).
+   
+>Przykładowa odpowiedź
+```json
+{"sumExpense":1,"originId":1,"sumIncome":1,"metalIncome":[{"metalTypeName":"kolorowy","sumMetalIncome":1},{"metalTypeName":"stalowy","sumMetalIncome":4}],"metalCollection":[{"metalTypeName":"stalowy","sumMetalIncome":1}]}
+```
+
 ### Zapytanie POST
 `"/tasks"`
 
