@@ -5,6 +5,9 @@ const bodyParser = require("body-parser");
 const app = express();
 const port = 3001;
 
+// 'SELECT tasks.origin_id AS originId, SUM(tasks.expense) AS sumExpense, SUM(tasks.quantity) AS sumQuantity FROM tasks JOIN origin ON tasks.origin_id = origin.id WHERE tasks.task = "zakup" GROUP BY tasks.origin_id'
+// 'SELECT origin_id AS originId, metal_type AS metalType, SUM(quantity) AS sumQuantity FROM tasks WHERE metal_type = "stalowy" GROUP BY origin_id UNION SELECT origin_id AS originId, metal_type AS metalType, SUM(quantity) AS sumQuantity FROM tasks WHERE metal_type = "kolorowy" GROUP BY origin_id'
+
 // Przepisanie tabeli z bazy do tablicy
 function dbTableToArray(rows) {
   const tasks = rows.map(row => {
@@ -17,7 +20,8 @@ function dbTableToArray(rows) {
       comment: row.comment,
       expense: row.expense,
       quantity: row.quantity,
-      metalType: row.metal_type
+      metalType: row.metal_type,
+      originId: row.origin_id
     };
   });
   return tasks;
@@ -53,6 +57,7 @@ function isValidInsert(insertObject) {
   // Mozliwe do wyboru tasks/metalTypes
   const possibleTasks = ["zakup", "odbior", "zaliczka", "wplywy", "wydatki"];
   const possibleMetalTypes = ["stalowy", "kolorowy"];
+  const possibleOrigin = ["1", "2", "3"];
   let valid = true;
   let err;
 
@@ -95,10 +100,19 @@ function isValidInsert(insertObject) {
             err = "Invalif metalType";
           }
           break;
+        case "originId":
+          if (!(typeof v === "string" && possibleOrigin.includes(v))) {
+            valid = false;
+            err = "Invalif origin";
+          }
+          break;
         default:
           valid = false;
           err = "Invalif input";
       }
+    } else {
+      // Zatrzymanie walidacji po stwierdzeniu jednego bledu
+      break;
     }
   }
   return { ifValid: valid, message: err };
@@ -146,13 +160,94 @@ app.get("/tasks", (req, res) => {
     });
 });
 
+app.get("/workplaces/:id", (req, res) => {
+  // Dodac walidacje :id!
+  // Pobranie wartosci /:id
+  const reqId = Number(req.params.id);
+
+  // Wydatki
+  const expenseSql =
+    'SELECT SUM(tasks.expense) as sumExpense FROM tasks WHERE origin_id = ? AND deleted_at IS NULL AND(task = "zakup" OR task = "wydatki")';
+  const sumExpense = new Promise((resolve, reject) => {
+    db.get(expenseSql, reqId, (err, row) => {
+      if (err === null) {
+        row.originId = reqId;
+        row.sumExpense === null ? (row.sumExpense = 0) : null;
+        resolve(row);
+      } else {
+        reject(err);
+      }
+    });
+  });
+
+  // Przychod
+  const incomeSql =
+    'SELECT SUM(tasks.expense) as sumIncome FROM tasks WHERE origin_id = ? AND deleted_at IS NULL AND task != "zakup" AND task != "wydatki"';
+  const sumIncome = new Promise((resolve, reject) => {
+    db.get(incomeSql, reqId, (err, row) => {
+      if (err === null) {
+        row.originId = reqId;
+        row.sumIncome === null ? (row.sumIncome = 0) : null;
+        resolve(row);
+      } else {
+        reject(err);
+      }
+    });
+  });
+
+  // Ile metalu przybylo
+  const metalIncomeSql =
+    'SELECT metal_type as metalTypeName, SUM(quantity) as sumMetalIncome FROM tasks WHERE origin_id = ? AND task = "zakup" AND deleted_at IS NULL GROUP BY metal_type';
+  const sumMetalIncome = new Promise((resolve, reject) => {
+    db.all(metalIncomeSql, reqId, (err, rows) => {
+      if (err === null) {
+        const metalIncome = {
+          metalIncome: rows,
+          originId: reqId
+        };
+        resolve(metalIncome);
+      } else {
+        reject(err);
+      }
+    });
+  });
+
+  // Ile metalu ubylo
+  const metalCollectionSql =
+    'SELECT metal_type as metalTypeName, SUM(quantity) as sumMetalIncome FROM tasks WHERE origin_id = ? AND task = "odbior" GROUP BY metal_type';
+  const sumMetalCollection = new Promise((resolve, reject) => {
+    db.all(metalCollectionSql, reqId, (err, rows) => {
+      if (err === null) {
+        const metalCollection = {
+          metalCollection: rows,
+          originId: reqId
+        };
+        resolve(metalCollection);
+      } else {
+        reject(err);
+      }
+    });
+  });
+
+  // Sklejenie wszystkich zapytan do bazy w jeden obiekt
+  Promise.all([sumExpense, sumIncome, sumMetalIncome, sumMetalCollection])
+    .then(value => {
+      const response = Object.assign({}, ...value);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(response));
+    })
+    .catch(err => {
+      sendError(res, err);
+    });
+});
+
 // Zapytanie dopisujace dane do bazy
 // Dopisuje nowy rekord z dodaniem created_at
-app.post("/tasks", (req, res) => {
+app.post("/tasks/:id", (req, res) => {
   new Promise((resolve, reject) => {
-    // Dodac walidacje do req.body (dodatkowo zaokraglac do dwoch miejsc)!
     const rb = req.body;
-    // Sprawdzenie walidacji otrzymanych danych
+    rb.originId = req.params.id; // Dodanie originId (pochodzenia) do otrzymanego obiektu
+    // Walidacja otrzymanych danych
     const validInfo = isValidInsert(rb);
     if (validInfo.ifValid) {
       const newInsertRow = [
@@ -163,11 +258,11 @@ app.post("/tasks", (req, res) => {
         rb.expense,
         rb.quantity,
         rb.metalType,
-        "Sklep 1"
+        rb.originId
       ];
       // W miejscu ?-ikow wpisywane sa elementy tablicy newInsertRow w funcki db.run
       const sql =
-        "INSERT INTO tasks (action_date, created_at, task, comment, expense, quantity, metal_type, origin) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        "INSERT INTO tasks (action_date, created_at, task, comment, expense, quantity, metal_type, origin_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
       // Dodanie do bazy rekordu
       // Music tutaj byc function(err) {...}, a nie (err) => {...}, poniewaz w drugim przypadku this.lsatID jest undefined
       db.run(sql, newInsertRow, function(err) {
