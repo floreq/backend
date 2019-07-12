@@ -12,12 +12,6 @@ node server.js
 | --- | ----------- | ---------- | ---------- | ---- | ------- | ------- | -------- | ---------- | --------- |
 | integer | text | text | text | text | text | integer | integer | text | integer |
 
-2. Origin
-
-| id  | name | 
-| --- | -----| 
-| integer | text |
-
 ## Możliwe zapytania do bazy
 
 Żądania są odbierane w **formacie obiektu JavaScript**
