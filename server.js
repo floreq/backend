@@ -34,6 +34,7 @@ function sendError(res, err) {
   res.status(500).end(err.message);
 }
 
+// Sprawdzenie poprawnosci daty
 function isValidDate(dateString) {
   // Validates that the input string is a valid date formatted as "mm.dd.yyyy"
   // First check for the pattern
@@ -53,6 +54,7 @@ function isValidDate(dateString) {
   return day > 0 && day <= monthLength[month - 1];
 }
 
+// Sprawdzenie poprawnosci przychodzacego POST
 function isValidInsert(insertObject) {
   // Mozliwe do wyboru tasks/metalTypes
   const possibleTasks = ["zakup", "odbior", "zaliczka", "wplywy", "wydatki"];
