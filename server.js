@@ -120,53 +120,7 @@ function isValidInsert(insertObject) {
   return { ifValid: valid, message: err };
 }
 
-// "Rozpakowywanie" przychodzacych zapytan
-const urlencodedParser = bodyParser.urlencoded({ extended: false });
-// Whitelist adresow
-const corsOptions = {
-  origin: "http://localhost:3000",
-  optionsSuccessStatus: 200 // some legacy browsers (IE11, various SmartTVs) choke on 204
-};
-// Ogolna konfiguracja app
-app.use(cors(corsOptions));
-app.use(bodyParser.json());
-app.use(urlencodedParser);
-
-// Polaczenie sie z baza z podanego pliku
-let db = new sqlite3.Database("frontendDB.sqlite3", err => {
-  if (err) {
-    return console.error(err.message);
-  }
-});
-
-// Zapytanie wyslajace cala liste tasks
-app.get("/tasks", (req, res) => {
-  const sql = "SELECT * FROM tasks ORDER BY id DESC";
-  // Pobranie z bazy calej tabeli
-  new Promise((resolve, reject) => {
-    // Wykonanie operacji na tabeili
-    db.all(sql, [], (err, rows) => {
-      if (err === null) {
-        resolve(dbTableToArray(rows));
-      } else {
-        reject(err);
-      }
-    });
-  })
-    .then(value => {
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify(value));
-    })
-    .catch(err => {
-      sendError(res, err);
-    });
-});
-
-app.get("/workplaces/:id", (req, res) => {
-  // Dodac walidacje :id!
-  // Pobranie wartosci /:id
-  const reqId = Number(req.params.id);
-
+function selectQueries(reqId) {
   // Wydatki
   const expenseSql =
     'SELECT SUM(tasks.expense) as sumExpense FROM tasks WHERE origin_id = ? AND deleted_at IS NULL AND(task = "zakup" OR task = "wydatki")';
@@ -232,9 +186,71 @@ app.get("/workplaces/:id", (req, res) => {
   });
 
   // Sklejenie wszystkich zapytan do bazy w jeden obiekt
-  Promise.all([sumExpense, sumIncome, sumMetalIncome, sumMetalCollection])
+  return Promise.all([
+    sumExpense,
+    sumIncome,
+    sumMetalIncome,
+    sumMetalCollection
+  ])
     .then(value => {
-      const response = Object.assign({}, ...value);
+      return Object.assign({}, ...value);
+      // res.writeHead(200, { "Content-Type": "application/json" });
+      // res.end(JSON.stringify(response));
+    })
+    .catch(err => {
+      throw err;
+      //sendError(res, err);
+    });
+}
+
+// "Rozpakowywanie" przychodzacych zapytan
+const urlencodedParser = bodyParser.urlencoded({ extended: false });
+// Whitelist adresow
+const corsOptions = {
+  origin: "http://localhost:3000",
+  optionsSuccessStatus: 200 // some legacy browsers (IE11, various SmartTVs) choke on 204
+};
+// Ogolna konfiguracja app
+app.use(cors(corsOptions));
+app.use(bodyParser.json());
+app.use(urlencodedParser);
+
+// Polaczenie sie z baza z podanego pliku
+let db = new sqlite3.Database("frontendDB.sqlite3", err => {
+  if (err) {
+    return console.error(err.message);
+  }
+});
+
+// Zapytanie wyslajace cala liste tasks
+app.get("/tasks", (req, res) => {
+  const sql = "SELECT * FROM tasks ORDER BY id DESC";
+  // Pobranie z bazy calej tabeli
+  new Promise((resolve, reject) => {
+    // Wykonanie operacji na tabeili
+    db.all(sql, [], (err, rows) => {
+      if (err === null) {
+        resolve(dbTableToArray(rows));
+      } else {
+        reject(err);
+      }
+    });
+  })
+    .then(value => {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(value));
+    })
+    .catch(err => {
+      sendError(res, err);
+    });
+});
+
+app.get("/workplaces/:id", (req, res) => {
+  // Dodac walidacje :id!
+  // Pobranie wartosci /:id
+  const reqId = Number(req.params.id);
+  selectQueries(reqId)
+    .then(response => {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify(response));
     })
