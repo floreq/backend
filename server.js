@@ -136,6 +136,25 @@ function selectQueries(reqId) {
     });
   });
 
+  // Wydatki z ostatnich 7 dni
+  const expenseLast7DaysSql =
+    'SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) || "-" || substr(action_date, 1, 2) as correct_date_format, SUM(tasks.expense) as sumExpenseLast7Days FROM tasks WHERE origin_id = ? AND deleted_at IS NULL AND(task = "zakup" OR task = "wydatki") AND correct_date_format BETWEEN DATE("now", "-7 day") AND DATE("now")';
+  const sumExpenseLast7Days = new Promise((resolve, reject) => {
+    db.get(expenseLast7DaysSql, reqId, (err, row) => {
+      if (err === null) {
+        delete row.correct_date_format;
+        row.originId = reqId;
+        row.sumExpense === null ? (row.sumExpense = 0) : null;
+        resolve(row);
+      } else {
+        reject(err);
+      }
+    });
+  });
+
+  //SELECT substr(action_date, 7,4) || '-' || substr(action_date, 4, 2) || '-' || substr(action_date, 1, 2) as action_date  FROM tasks;
+  //SELECT substr(action_date, 7,4) || '-' || substr(action_date, 4, 2) || '-' || substr(action_date, 1, 2) as correct_date_format, SUM(tasks.expense) as sumExpense FROM tasks WHERE origin_id = 1 AND deleted_at IS NULL AND(task = "zakup" OR task = "wydatki") AND correct_date_format BETWEEN DATE('now', '-7 day') AND DATE('now')
+
   // Przychod
   const incomeSql =
     'SELECT SUM(tasks.expense) as sumIncome FROM tasks WHERE origin_id = ? AND deleted_at IS NULL AND task != "zakup" AND task != "wydatki"';
@@ -170,7 +189,7 @@ function selectQueries(reqId) {
 
   // Ile metalu ubylo
   const metalCollectionSql =
-    'SELECT metal_type as metalTypeName, SUM(quantity) as sumMetalIncome FROM tasks WHERE origin_id = ? AND task = "odbior" GROUP BY metal_type';
+    'SELECT metal_type as metalTypeName, SUM(quantity) as sumMetalIncome FROM tasks WHERE origin_id = ? AND task = "odbior" AND deleted_at IS NULL GROUP BY metal_type';
   const sumMetalCollection = new Promise((resolve, reject) => {
     db.all(metalCollectionSql, reqId, (err, rows) => {
       if (err === null) {
@@ -188,6 +207,7 @@ function selectQueries(reqId) {
   // Sklejenie wszystkich zapytan do bazy w jeden obiekt
   return Promise.all([
     sumExpense,
+    sumExpenseLast7Days,
     sumIncome,
     sumMetalIncome,
     sumMetalCollection
