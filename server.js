@@ -122,13 +122,13 @@ function isValidInsert(insertObject) {
 
 function selectQueries(reqId) {
   // Wydatki
-  const expenseSql =
-    'SELECT SUM(tasks.expense) as sumExpense FROM tasks WHERE origin_id = ? AND deleted_at IS NULL AND(task = "zakup" OR task = "wydatki")';
-  const sumExpense = new Promise((resolve, reject) => {
-    db.get(expenseSql, reqId, (err, row) => {
+  const cashStatusSql =
+    'SELECT IFNULL(SUM(tasks.expense), 0)-(SELECT IFNULL(SUM(tasks.expense), 0) FROM tasks WHERE origin_id = ? AND deleted_at IS NULL AND(task = "zakup" OR task = "wydatki")) as cashStatus FROM tasks WHERE origin_id = ? AND deleted_at IS NULL AND task != "zakup" AND task != "wydatki"';
+  const cashStatus = new Promise((resolve, reject) => {
+    db.get(cashStatusSql, [reqId, reqId], (err, row) => {
       if (err === null) {
         row.originId = reqId;
-        row.sumExpense === null ? (row.sumExpense = 0) : null;
+        console.log(row);
         resolve(row);
       } else {
         reject(err);
@@ -138,7 +138,7 @@ function selectQueries(reqId) {
 
   // Wydatki z ostatnich 7 dni
   const expenseLast7DaysSql =
-    'SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) || "-" || substr(action_date, 1, 2) as correct_date_format, SUM(tasks.expense) as sumExpenseLast7Days FROM tasks WHERE origin_id = ? AND deleted_at IS NULL AND(task = "zakup" OR task = "wydatki") AND correct_date_format BETWEEN DATE("now", "-7 day") AND DATE("now")';
+    'SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) || "-" || substr(action_date, 1, 2) as correct_date_format, IFNULL(SUM(tasks.expense), 0) as sumExpenseLast7Days FROM tasks WHERE origin_id = ? AND deleted_at IS NULL AND(task = "zakup" OR task = "wydatki") AND correct_date_format BETWEEN DATE("now", "-7 day") AND DATE("now")';
   const sumExpenseLast7Days = new Promise((resolve, reject) => {
     db.get(expenseLast7DaysSql, reqId, (err, row) => {
       if (err === null) {
@@ -170,47 +170,52 @@ function selectQueries(reqId) {
     });
   });
 
-  // Ile metalu przybylo
-  const metalIncomeSql =
-    'SELECT metal_type as metalTypeName, SUM(quantity) as sumMetalIncome FROM tasks WHERE origin_id = ? AND task = "zakup" AND deleted_at IS NULL GROUP BY metal_type';
-  const sumMetalIncome = new Promise((resolve, reject) => {
-    db.all(metalIncomeSql, reqId, (err, rows) => {
+  // Ile jest metalu
+  const metalInStockSql =
+    'SELECT IFNULL(metal_type, "stalowy") as metalTypeName, IFNULL(SUM(quantity), 0)-(SELECT IFNULL(SUM(quantity), 0) FROM tasks WHERE origin_id = ? AND task = "odbior" AND deleted_at IS NULL AND metal_type = "stalowy") as sumMetalIncome FROM tasks WHERE origin_id = ? AND task = "zakup" AND deleted_at IS NULL AND metal_type = "stalowy" UNION SELECT IFNULL(metal_type, "kolorowy") as metalTypeName, IFNULL(SUM(quantity), 0)-(SELECT IFNULL(SUM(quantity), 0) FROM tasks WHERE origin_id = ? AND task = "odbior" AND deleted_at IS NULL AND metal_type = "kolorowy") as sumMetalIncome FROM tasks WHERE origin_id = ? AND task = "zakup" AND deleted_at IS NULL AND metal_type = "kolorowy"';
+  const sumMetalInStock = new Promise((resolve, reject) => {
+    db.all(metalInStockSql, [reqId, reqId, reqId, reqId], (err, rows) => {
       if (err === null) {
-        const metalIncome = {
-          metalIncome: rows,
+        const metalInStock = {
+          metalInStock: rows,
           originId: reqId
         };
-        resolve(metalIncome);
+        resolve(metalInStock);
       } else {
         reject(err);
       }
     });
   });
 
-  // Ile metalu ubylo
-  const metalCollectionSql =
-    'SELECT metal_type as metalTypeName, SUM(quantity) as sumMetalIncome FROM tasks WHERE origin_id = ? AND task = "odbior" AND deleted_at IS NULL GROUP BY metal_type';
-  const sumMetalCollection = new Promise((resolve, reject) => {
-    db.all(metalCollectionSql, reqId, (err, rows) => {
-      if (err === null) {
-        const metalCollection = {
-          metalCollection: rows,
-          originId: reqId
-        };
-        resolve(metalCollection);
-      } else {
-        reject(err);
+  // Suma metalu zgrupowane dniami rozdzielona na rozdaj kolorowy i stalowy
+  const metalInStockSqlGroupByDay =
+    'SELECT tasks.action_date as actionDate, IFNULL(metal_type, "stalowy") as metalTypeName, IFNULL(SUM(quantity), 0)-(SELECT IFNULL(SUM(quantity), 0) FROM tasks WHERE origin_id = ? AND task = "odbior" AND deleted_at IS NULL AND metal_type = "stalowy") as sumMetalInStock FROM tasks WHERE origin_id = ? AND task = "zakup" AND deleted_at IS NULL AND metal_type = "stalowy" GROUP BY tasks.action_date UNION SELECT tasks.action_date, IFNULL(metal_type, "kolorowy") as metalTypeName, IFNULL(SUM(quantity), 0)-(SELECT IFNULL(SUM(quantity), 0) FROM tasks WHERE origin_id = ? AND task = "odbior" AND deleted_at IS NULL AND metal_type = "kolorowy") as sumMetalInStock FROM tasks WHERE origin_id = ? AND task = "zakup" AND deleted_at IS NULL AND metal_type = "kolorowy" GROUP BY tasks.action_date';
+  const sumMetalInStockGroupByDay = new Promise((resolve, reject) => {
+    db.all(
+      metalInStockSqlGroupByDay,
+      [reqId, reqId, reqId, reqId],
+      (err, rows) => {
+        if (err === null) {
+          const metalInStockGroupByDay = {
+            metalInStockGroupByDay: rows,
+            originId: reqId
+          };
+          console.log(metalInStockGroupByDay);
+          resolve(metalInStockGroupByDay);
+        } else {
+          reject(err);
+        }
       }
-    });
+    );
   });
 
   // Sklejenie wszystkich zapytan do bazy w jeden obiekt
   return Promise.all([
-    sumExpense,
+    cashStatus,
     sumExpenseLast7Days,
     sumIncome,
-    sumMetalIncome,
-    sumMetalCollection
+    sumMetalInStock,
+    sumMetalInStockGroupByDay
   ])
     .then(value => {
       return Object.assign({}, ...value);
