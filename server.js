@@ -5,6 +5,25 @@ const bodyParser = require("body-parser");
 const app = express();
 const port = 3001;
 
+// "Rozpakowywanie" przychodzacych zapytan
+const urlencodedParser = bodyParser.urlencoded({ extended: false });
+// Whitelist adresow
+const corsOptions = {
+  origin: "http://localhost:3000",
+  optionsSuccessStatus: 200 // some legacy browsers (IE11, various SmartTVs) choke on 204
+};
+// Ogolna konfiguracja app
+app.use(cors(corsOptions));
+app.use(bodyParser.json());
+app.use(urlencodedParser);
+
+// Polaczenie sie z baza z podanego pliku
+let db = new sqlite3.Database("frontendDB.sqlite3", err => {
+  if (err) {
+    return console.error(err.message);
+  }
+});
+
 // 'SELECT tasks.origin_id AS originId, SUM(tasks.expense) AS sumExpense, SUM(tasks.quantity) AS sumQuantity FROM tasks JOIN origin ON tasks.origin_id = origin.id WHERE tasks.task = "zakup" GROUP BY tasks.origin_id'
 // 'SELECT origin_id AS originId, metal_type AS metalType, SUM(quantity) AS sumQuantity FROM tasks WHERE metal_type = "stalowy" GROUP BY origin_id UNION SELECT origin_id AS originId, metal_type AS metalType, SUM(quantity) AS sumQuantity FROM tasks WHERE metal_type = "kolorowy" GROUP BY origin_id'
 
@@ -128,7 +147,6 @@ function selectQueries(reqId) {
     db.get(cashStatusSql, [reqId, reqId], (err, row) => {
       if (err === null) {
         row.originId = reqId;
-        console.log(row);
         resolve(row);
       } else {
         reject(err);
@@ -172,19 +190,35 @@ function selectQueries(reqId) {
     });
   });
 
-  // Suma metalu zgrupowane dniami rozdzielona na rozdaj kolorowy i stalowy
+  // Suma metalu zgrupowana dniami rozdzielona na rozdaj kolorowy i stalowy
+  // Wiecej komentarzy w cashStatusGroupByDay, podobne dzialanie
   const metalInStockSqlGroupByDay =
-    'SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) || "-" || substr(action_date, 1, 2) as correctDateFormat, tasks.action_date as actionDate, IFNULL(metal_type, "stalowy") as metalTypeName, IFNULL(SUM(quantity), 0)-(SELECT IFNULL(SUM(quantity), 0) FROM tasks WHERE origin_id = ? AND task = "odbior" AND deleted_at IS NULL AND metal_type = "stalowy") as sumMetalInStock FROM tasks WHERE origin_id = ? AND task = "zakup" AND deleted_at IS NULL AND metal_type = "stalowy" GROUP BY tasks.action_date UNION SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) || "-" || substr(action_date, 1, 2) as correctDateFormat, tasks.action_date, IFNULL(metal_type, "kolorowy") as metalTypeName, IFNULL(SUM(quantity), 0)-(SELECT IFNULL(SUM(quantity), 0) FROM tasks WHERE origin_id = ? AND task = "odbior" AND deleted_at IS NULL AND metal_type = "kolorowy") as sumMetalInStock FROM tasks WHERE origin_id = ? AND task = "zakup" AND deleted_at IS NULL AND metal_type = "kolorowy" GROUP BY tasks.action_date';
+    'SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) || "-" || substr(action_date, 1, 2) as correctDateFormat, tasks.action_date as actionDate, tasks.metal_type as metalTypeName, SUM(tasks.quantity) as sumMetalInStock FROM tasks WHERE tasks.origin_id = ? and tasks.task = "zakup" AND deleted_at IS NULL AND metal_type = "stalowy" GROUP BY action_date UNION SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) || "-" || substr(action_date, 1, 2) as correctDateFornat, tasks.action_date as actionDate, tasks.metal_type as metalTypeName, SUM(tasks.quantity)*(-1) as sumMetalInStock FROM tasks WHERE tasks.origin_id = ? and tasks.task = "odbior" AND deleted_at IS NULL AND metal_type = "stalowy" GROUP BY action_date UNION SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) || "-" || substr(action_date, 1, 2) as correctDateFormat, tasks.action_date as actionDate, tasks.metal_type as metalTypeName, SUM(tasks.quantity) as sumMetalInStock FROM tasks WHERE tasks.origin_id = ? and tasks.task = "zakup" AND deleted_at IS NULL AND metal_type = "kolorowy" GROUP BY action_date UNION SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) || "-" || substr(action_date, 1, 2) as correctDateFornat, tasks.action_date as actionDate, tasks.metal_type as metalTypeName, SUM(tasks.quantity)*(-1) as sumMetalInStock FROM tasks WHERE tasks.origin_id = ? and tasks.task = "odbior" AND deleted_at IS NULL AND metal_type = "kolorowy" GROUP BY action_date';
   const sumMetalInStockGroupByDay = new Promise((resolve, reject) => {
     db.all(
       metalInStockSqlGroupByDay,
       [reqId, reqId, reqId, reqId],
       (err, rows) => {
         if (err === null) {
+          let prevRow = {};
           const metalInStockGroupByDay = {
-            metalInStockGroupByDay: rows,
+            metalInStockGroupByDay: [],
             originId: reqId
           };
+          for (let i = 0; i < rows.length; i++) {
+            if (
+              rows[i].actionDate === prevRow.actionDate &&
+              rows[i].metalTypeName === prevRow.metalTypeName
+            ) {
+              prevRow.sumMetalInStock += rows[i].sumMetalInStock;
+              metalInStockGroupByDay.metalInStockGroupByDay.pop();
+              metalInStockGroupByDay.metalInStockGroupByDay.push(prevRow);
+              prevRow = rows[i];
+            } else {
+              prevRow = rows[i];
+              metalInStockGroupByDay.metalInStockGroupByDay.push(prevRow);
+            }
+          }
           resolve(metalInStockGroupByDay);
         } else {
           reject(err);
@@ -227,6 +261,39 @@ function selectQueries(reqId) {
     });
   });
 
+  // Suma stanu kasy zgrupowa dniami
+  const cashStatusSqlGroupByDay =
+    'SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) || "-" || substr(action_date, 1, 2) as correctDateFormat, tasks.action_date as actionDate, SUM(tasks.expense) as cashStatus FROM tasks WHERE tasks.origin_id = ? AND (tasks.task != "zakup" AND tasks.task != "wydatki") AND deleted_at IS NULL AND metal_type = "stalowy" GROUP BY action_date UNION SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) || "-" || substr(action_date, 1, 2) as correctDateFornat, tasks.action_date as actionDate, SUM(tasks.expense)*(-1) as cashStatus FROM tasks WHERE tasks.origin_id = ? AND (tasks.task = "zakup" OR tasks.task = "wydatki") AND deleted_at IS NULL AND metal_type = "stalowy" GROUP BY action_date';
+  // Zapytanie pobiera z bazy stan kasy zgrupowany dniami
+  // Zapytanie nie jest idealny poniewaz zwraca, np. 21.07.2019, stan: 70 (przychod) i np. 21.07.2019, stan: -20 (wydatki, sa minusowe!), a nie juz gotowy stan kasy
+  const sumCashStatusGroupByDay = new Promise((resolve, reject) => {
+    db.all(cashStatusSqlGroupByDay, [reqId, reqId], (err, rows) => {
+      if (err === null) {
+        let prevRow = {}; // Przechowywanie porzedniego wiersza
+        // Przechowywanie przetworzonych danych
+        const sumCashStatusGroupByDay = {
+          sumCashStatusGroupByDay: [],
+          originId: reqId
+        };
+        // Operacje na elementach tablicy (rows - wynik zapytania)
+        for (let i = 0; i < rows.length; i++) {
+          // Szukanie pokrywajacych sie dni, czyli przychod lub wydatki i dodanie ich do siebie (wykozystanie, ze wydatki sa zwracane jak wartosc ujemna)
+          if (rows[i].actionDate === prevRow.actionDate) {
+            prevRow.cashStatus += rows[i].cashStatus; // Dodanie
+            sumCashStatusGroupByDay.sumCashStatusGroupByDay.pop(); // Usuniecie pokrywajacej sie wartosci
+            sumCashStatusGroupByDay.sumCashStatusGroupByDay.push(prevRow); // Zapisanie wlasciwej wartosci
+            prevRow = rows[i];
+          } else {
+            prevRow = rows[i];
+            sumCashStatusGroupByDay.sumCashStatusGroupByDay.push(prevRow);
+          }
+        }
+        resolve(sumCashStatusGroupByDay);
+      } else {
+        reject(err);
+      }
+    });
+  });
   // Suma z zaliczki zgrupowana dniami
   const advancePaymentSqlGroupByDay =
     'SELECT tasks.action_date as actionDate, IFNULL(SUM(tasks.expense), 0) as sumAdvancePayment FROM tasks WHERE origin_id = ? AND deleted_at IS NULL AND task = "zaliczka" GROUP BY action_date';
@@ -252,7 +319,8 @@ function selectQueries(reqId) {
     sumExpensesGroupByDay,
     sumAdvancePaymentGroupByDay,
     sumMetalInStockGroupByDay,
-    sumIncomeGroupByDay
+    sumIncomeGroupByDay,
+    sumCashStatusGroupByDay
   ])
     .then(value => {
       return Object.assign({}, ...value);
@@ -264,25 +332,6 @@ function selectQueries(reqId) {
       //sendError(res, err);
     });
 }
-
-// "Rozpakowywanie" przychodzacych zapytan
-const urlencodedParser = bodyParser.urlencoded({ extended: false });
-// Whitelist adresow
-const corsOptions = {
-  origin: "http://localhost:3000",
-  optionsSuccessStatus: 200 // some legacy browsers (IE11, various SmartTVs) choke on 204
-};
-// Ogolna konfiguracja app
-app.use(cors(corsOptions));
-app.use(bodyParser.json());
-app.use(urlencodedParser);
-
-// Polaczenie sie z baza z podanego pliku
-let db = new sqlite3.Database("frontendDB.sqlite3", err => {
-  if (err) {
-    return console.error(err.message);
-  }
-});
 
 // Zapytanie wyslajace cala liste tasks
 app.get("/tasks", (req, res) => {
