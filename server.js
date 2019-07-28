@@ -311,6 +311,23 @@ function selectQueries(reqId) {
     });
   });
 
+  // Srednia
+  const averageSqlGroupByDay =
+    'SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) as correctDateFormat, substr(action_date, 4, 2) || "." || substr(action_date, 7,4) as actionDate, tasks.metal_type as metalTypeName, ROUND((SUM(tasks.expense)*1.0)/(SUM(tasks.quantity)*1.0), 1) as average FROM tasks WHERE tasks.origin_id = ? AND tasks.task = "zakup" AND metal_type = "stalowy" AND tasks.deleted_at IS NULL GROUP BY correctDateFormat UNION SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) as correctDateFormat, substr(action_date, 4, 2) || "." || substr(action_date, 7,4) as actionDate, tasks.metal_type as metalTypeName,ROUND((SUM(tasks.expense)*1.0)/(SUM(tasks.quantity)*1.0), 1) as average FROM tasks WHERE tasks.origin_id = ? AND tasks.task = "zakup" AND metal_type = "kolorowy" AND tasks.deleted_at IS NULL GROUP BY correctDateFormat';
+  const sumAverageGroupByDay = new Promise((resolve, reject) => {
+    db.all(averageSqlGroupByDay, [reqId, reqId], (err, rows) => {
+      if (err === null) {
+        const sumAverageGroupByDay = {
+          sumAverageGroupByDay: rows,
+          originId: reqId
+        };
+        resolve(sumAverageGroupByDay);
+      } else {
+        reject(err);
+      }
+    });
+  });
+
   // Sklejenie wszystkich zapytan do bazy w jeden obiekt
   return Promise.all([
     cashStatus,
@@ -320,7 +337,8 @@ function selectQueries(reqId) {
     sumAdvancePaymentGroupByDay,
     sumMetalInStockGroupByDay,
     sumIncomeGroupByDay,
-    sumCashStatusGroupByDay
+    sumCashStatusGroupByDay,
+    sumAverageGroupByDay
   ])
     .then(value => {
       return Object.assign({}, ...value);
