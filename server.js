@@ -140,9 +140,9 @@ function isValidInsert(insertObject) {
 }
 
 function selectQueries(reqId) {
-  // Wydatki
+  // Stan kasy
   const cashStatusSql =
-    'SELECT IFNULL(SUM(tasks.expense), 0)-(SELECT IFNULL(SUM(tasks.expense), 0) FROM tasks WHERE origin_id = ? AND deleted_at IS NULL AND(task = "zakup" OR task = "wydatki")) as cashStatus FROM tasks WHERE origin_id = ? AND deleted_at IS NULL AND task != "zakup" AND task != "wydatki"';
+    'SELECT ROUND(IFNULL(SUM(tasks.expense), 0)-(SELECT IFNULL(SUM(tasks.expense), 0) FROM tasks WHERE origin_id = ? AND deleted_at IS NULL AND(task = "zakup" OR task = "wydatki")), 0) as cashStatus FROM tasks WHERE origin_id = ? AND deleted_at IS NULL AND task != "zakup" AND task != "wydatki"';
   const cashStatus = new Promise((resolve, reject) => {
     db.get(cashStatusSql, [reqId, reqId], (err, row) => {
       if (err === null) {
@@ -156,7 +156,7 @@ function selectQueries(reqId) {
 
   // Wydatki z ostatnich 7 dni
   const expenseLast7DaysSql =
-    'SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) || "-" || substr(action_date, 1, 2) as correct_date_format, IFNULL(SUM(tasks.expense), 0) as sumExpenseLast7Days FROM tasks WHERE origin_id = ? AND deleted_at IS NULL AND(task = "zakup" OR task = "wydatki") AND correct_date_format BETWEEN DATE("now", "-7 day") AND DATE("now")';
+    'SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) || "-" || substr(action_date, 1, 2) as correct_date_format, ROUND(IFNULL(SUM(tasks.expense), 0), 0) as sumExpenseLast7Days FROM tasks WHERE origin_id = ? AND deleted_at IS NULL AND(task = "zakup" OR task = "wydatki") AND correct_date_format BETWEEN DATE("now", "-7 day") AND DATE("now")';
   const sumExpenseLast7Days = new Promise((resolve, reject) => {
     db.get(expenseLast7DaysSql, reqId, (err, row) => {
       if (err === null) {
@@ -175,7 +175,7 @@ function selectQueries(reqId) {
 
   // Ile jest metalu
   const metalInStockSql =
-    'SELECT IFNULL(metal_type, "stalowy") as metalTypeName, IFNULL(SUM(quantity), 0)-(SELECT IFNULL(SUM(quantity), 0) FROM tasks WHERE origin_id = ? AND task = "odbior" AND deleted_at IS NULL AND metal_type = "stalowy") as sumMetalIncome FROM tasks WHERE origin_id = ? AND task = "zakup" AND deleted_at IS NULL AND metal_type = "stalowy" UNION SELECT IFNULL(metal_type, "kolorowy") as metalTypeName, IFNULL(SUM(quantity), 0)-(SELECT IFNULL(SUM(quantity), 0) FROM tasks WHERE origin_id = ? AND task = "odbior" AND deleted_at IS NULL AND metal_type = "kolorowy") as sumMetalIncome FROM tasks WHERE origin_id = ? AND task = "zakup" AND deleted_at IS NULL AND metal_type = "kolorowy"';
+    'SELECT IFNULL(metal_type, "stalowy") as metalTypeName, ROUND(IFNULL(SUM(quantity), 0)-(SELECT IFNULL(SUM(quantity), 0) FROM tasks WHERE origin_id = ? AND task = "odbior" AND deleted_at IS NULL AND metal_type = "stalowy"), 0) as sumMetalIncome FROM tasks WHERE origin_id = ? AND task = "zakup" AND deleted_at IS NULL AND metal_type = "stalowy" UNION SELECT IFNULL(metal_type, "kolorowy") as metalTypeName, ROUND(IFNULL(SUM(quantity), 0)-(SELECT IFNULL(SUM(quantity), 0) FROM tasks WHERE origin_id = ? AND task = "odbior" AND deleted_at IS NULL AND metal_type = "kolorowy"), 0) as sumMetalIncome FROM tasks WHERE origin_id = ? AND task = "zakup" AND deleted_at IS NULL AND metal_type = "kolorowy"';
   const sumMetalInStock = new Promise((resolve, reject) => {
     db.all(metalInStockSql, [reqId, reqId, reqId, reqId], (err, rows) => {
       if (err === null) {
@@ -191,9 +191,10 @@ function selectQueries(reqId) {
   });
 
   // Suma metalu zgrupowana dniami rozdzielona na rozdaj kolorowy i stalowy
+  // Wartosc na minusie to odbior
   // Wiecej komentarzy w cashStatusGroupByDay, podobne dzialanie
   const metalInStockSqlGroupByDay =
-    'SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) || "-" || substr(action_date, 1, 2) as correctDateFormat, tasks.action_date as actionDate, tasks.metal_type as metalTypeName, SUM(tasks.quantity) as sumMetalInStock FROM tasks WHERE tasks.origin_id = ? and tasks.task = "zakup" AND deleted_at IS NULL AND metal_type = "stalowy" GROUP BY action_date UNION SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) || "-" || substr(action_date, 1, 2) as correctDateFornat, tasks.action_date as actionDate, tasks.metal_type as metalTypeName, SUM(tasks.quantity)*(-1) as sumMetalInStock FROM tasks WHERE tasks.origin_id = ? and tasks.task = "odbior" AND deleted_at IS NULL AND metal_type = "stalowy" GROUP BY action_date UNION SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) || "-" || substr(action_date, 1, 2) as correctDateFormat, tasks.action_date as actionDate, tasks.metal_type as metalTypeName, SUM(tasks.quantity) as sumMetalInStock FROM tasks WHERE tasks.origin_id = ? and tasks.task = "zakup" AND deleted_at IS NULL AND metal_type = "kolorowy" GROUP BY action_date UNION SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) || "-" || substr(action_date, 1, 2) as correctDateFornat, tasks.action_date as actionDate, tasks.metal_type as metalTypeName, SUM(tasks.quantity)*(-1) as sumMetalInStock FROM tasks WHERE tasks.origin_id = ? and tasks.task = "odbior" AND deleted_at IS NULL AND metal_type = "kolorowy" GROUP BY action_date';
+    'SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) || "-" || substr(action_date, 1, 2) as correctDateFormat, tasks.action_date as actionDate, tasks.metal_type as metalTypeName, ROUND(SUM(tasks.quantity), 0) as sumMetalInStock FROM tasks WHERE tasks.origin_id = ? and tasks.task = "zakup" AND deleted_at IS NULL AND metal_type = "stalowy" GROUP BY action_date UNION SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) || "-" || substr(action_date, 1, 2) as correctDateFornat, tasks.action_date as actionDate, tasks.metal_type as metalTypeName, ROUND(SUM(tasks.quantity)*(-1), 0) as sumMetalInStock FROM tasks WHERE tasks.origin_id = ? and tasks.task = "odbior" AND deleted_at IS NULL AND metal_type = "stalowy" GROUP BY action_date UNION SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) || "-" || substr(action_date, 1, 2) as correctDateFormat, tasks.action_date as actionDate, tasks.metal_type as metalTypeName, ROUND(SUM(tasks.quantity), 0) as sumMetalInStock FROM tasks WHERE tasks.origin_id = ? and tasks.task = "zakup" AND deleted_at IS NULL AND metal_type = "kolorowy" GROUP BY action_date UNION SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) || "-" || substr(action_date, 1, 2) as correctDateFornat, tasks.action_date as actionDate, tasks.metal_type as metalTypeName, ROUND(SUM(tasks.quantity)*(-1), 0) as sumMetalInStock FROM tasks WHERE tasks.origin_id = ? and tasks.task = "odbior" AND deleted_at IS NULL AND metal_type = "kolorowy" GROUP BY action_date';
   const sumMetalInStockGroupByDay = new Promise((resolve, reject) => {
     db.all(
       metalInStockSqlGroupByDay,
@@ -229,7 +230,7 @@ function selectQueries(reqId) {
 
   // Suma wydatkow zgrupowana dniami
   const expensesSqlGroupByDay =
-    'SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) || "-" || substr(action_date, 1, 2) as correctDateFormat, tasks.action_date as actionDate, IFNULL(SUM(tasks.expense), 0) as sumExpenses FROM tasks WHERE origin_id = ? AND deleted_at IS NULL AND(task = "zakup" OR task = "wydatki") GROUP BY action_date';
+    'SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) || "-" || substr(action_date, 1, 2) as correctDateFormat, tasks.action_date as actionDate, ROUND(IFNULL(SUM(tasks.expense), 0), 0) as sumExpenses FROM tasks WHERE origin_id = ? AND deleted_at IS NULL AND(task = "zakup" OR task = "wydatki") GROUP BY action_date';
   const sumExpensesGroupByDay = new Promise((resolve, reject) => {
     db.all(expensesSqlGroupByDay, reqId, (err, rows) => {
       if (err === null) {
@@ -246,7 +247,7 @@ function selectQueries(reqId) {
 
   // Suma wplywow zgrupowana dniami
   const incomeSqlGroupByDay =
-    'SELECT tasks.action_date as actionDate, IFNULL(SUM(tasks.expense), 0) as sumIncome FROM tasks WHERE origin_id = ? AND deleted_at IS NULL AND task = "wplywy" GROUP BY action_date';
+    'SELECT tasks.action_date as actionDate, ROUND(IFNULL(SUM(tasks.expense), 0), 0) as sumIncome FROM tasks WHERE origin_id = ? AND deleted_at IS NULL AND task = "wplywy" GROUP BY action_date';
   const sumIncomeGroupByDay = new Promise((resolve, reject) => {
     db.all(incomeSqlGroupByDay, reqId, (err, rows) => {
       if (err === null) {
@@ -263,7 +264,7 @@ function selectQueries(reqId) {
 
   // Suma stanu kasy zgrupowa dniami
   const cashStatusSqlGroupByDay =
-    'SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) || "-" || substr(action_date, 1, 2) as correctDateFormat, tasks.action_date as actionDate, SUM(tasks.expense) as cashStatus FROM tasks WHERE tasks.origin_id = ? AND (tasks.task != "zakup" AND tasks.task != "wydatki") AND deleted_at IS NULL AND metal_type = "stalowy" GROUP BY action_date UNION SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) || "-" || substr(action_date, 1, 2) as correctDateFornat, tasks.action_date as actionDate, SUM(tasks.expense)*(-1) as cashStatus FROM tasks WHERE tasks.origin_id = ? AND (tasks.task = "zakup" OR tasks.task = "wydatki") AND deleted_at IS NULL AND metal_type = "stalowy" GROUP BY action_date';
+    'SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) || "-" || substr(action_date, 1, 2) as correctDateFormat, tasks.action_date as actionDate, ROUND(SUM(tasks.expense), 0) as cashStatus FROM tasks WHERE tasks.origin_id = ? AND (tasks.task != "zakup" AND tasks.task != "wydatki") AND deleted_at IS NULL AND metal_type = "stalowy" GROUP BY action_date UNION SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) || "-" || substr(action_date, 1, 2) as correctDateFornat, tasks.action_date as actionDate, ROUND(SUM(tasks.expense)*(-1), 0) as cashStatus FROM tasks WHERE tasks.origin_id = ? AND (tasks.task = "zakup" OR tasks.task = "wydatki") AND deleted_at IS NULL AND metal_type = "stalowy" GROUP BY action_date';
   // Zapytanie pobiera z bazy stan kasy zgrupowany dniami
   // Zapytanie nie jest idealny poniewaz zwraca, np. 21.07.2019, stan: 70 (przychod) i np. 21.07.2019, stan: -20 (wydatki, sa minusowe!), a nie juz gotowy stan kasy
   const sumCashStatusGroupByDay = new Promise((resolve, reject) => {
@@ -296,7 +297,7 @@ function selectQueries(reqId) {
   });
   // Suma z zaliczki zgrupowana dniami
   const advancePaymentSqlGroupByDay =
-    'SELECT tasks.action_date as actionDate, IFNULL(SUM(tasks.expense), 0) as sumAdvancePayment FROM tasks WHERE origin_id = ? AND deleted_at IS NULL AND task = "zaliczka" GROUP BY action_date';
+    'SELECT tasks.action_date as actionDate, ROUND(IFNULL(SUM(tasks.expense), 0), 0) as sumAdvancePayment FROM tasks WHERE origin_id = ? AND deleted_at IS NULL AND task = "zaliczka" GROUP BY action_date';
   const sumAdvancePaymentGroupByDay = new Promise((resolve, reject) => {
     db.all(advancePaymentSqlGroupByDay, reqId, (err, rows) => {
       if (err === null) {
