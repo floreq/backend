@@ -23,29 +23,29 @@ Odpowiedzi są wysyłane w **formacie pliku JSON**
 
 1. Zapytanie zwraca **wszystkie rekordy** z bazy.
 
->Przykładowe żadanie
-```javascript
-{actionDate: "07.07.2019", task: "zakup", comment: "Test", expense: "1", quantity: "1", task: "zakup"}
-```
-
 >Przykładowa odpowiedź
 ```json
-[{"id": 1, "actionDate": "01.01.1000", "createdAt": "[data dodana przez zapytanie POST]", "deletedAt": "[data dodana przez zaptanie DELETE]", "task": "zakup", "comment": "","expense": 0,"quantity": 0,"metalType": "stalowy"},
-{"id": 2, "actionDate": "01.01.1000", "createdAt": "[data dodana przez zapytanie POST]", "deletedAt": "", "task": "zakup", "comment": "","expense": 0,"quantity": 0,"metalType": "stalowy"}]
+[{"id": 1, "actionDate": "01.01.1000", "createdAt": "[data dodana przez zapytanie POST]", "deletedAt": "[data dodana przez zaptanie DELETE]", "task": "zakup", "comment": "","expense": 0,"quantity": 0,"metalType": "stalowy", "originId": 1},
+{"id": 2, "actionDate": "01.01.1000", "createdAt": "[data dodana przez zapytanie POST]", "deletedAt": "", "task": "zakup", "comment": "","expense": 0,"quantity": 0,"metalType": "stalowy", "originId": 1}]
 ```
 ---
 
 `"/workplaces/:id"`
 
 1. Zapytanie zwraca **wybrane dane** z bazy:
-   - sume wydatków,
-   - sume przychodów,
-   - sume zakupionych metali (Income),
+   - stan kasy (cashStatus),
+   - stan kasy zgrupowany dniami (sumCashStatusGroupByDay),
+   - sume wydatków przez siedem ostatnich dni (sumExpenseLast7Days),
+   - sume wydatków zgrupowanych dniami (expensesGroupByDay),
+   - stan metali (metalInStock),
+   - stan metali zgrupowanych dniami (metalInStockGroupByDay),
+   - sume zaliczek zgrupowane dniami (sumAdvancePaymentGroupByDay),
+   - sume wpływów zgrupowane dniami (sumIncomeGroupByDay)
    - sume odebranych metali (Collection).
    
 >Przykładowa odpowiedź
 ```json
-{"sumExpense":1,"originId":1,"sumIncome":1,"metalIncome":[{"metalTypeName":"kolorowy","sumMetalIncome":1},{"metalTypeName":"stalowy","sumMetalIncome":4}],"metalCollection":[{"metalTypeName":"stalowy","sumMetalIncome":1}]}
+{"sumExpense": 1, "originId": 1, "sumIncome": 1, "metalIncome": [{"metalTypeName": "kolorowy", "sumMetalIncome":1 }, {"metalTypeName": "stalowy", "sumMetalIncome": 4}], "metalCollection": [{"metalTypeName": "stalowy", "sumMetalIncome": 1}]}
 ```
 
 ### Zapytanie POST
@@ -56,7 +56,7 @@ Odpowiedzi są wysyłane w **formacie pliku JSON**
 
 >Przykładowa odpowiedź
 ```json
-{"id": 1, "actionDate": "01.01.1000", "createdAt": "[data dodana przez zapytanie POST]", "deletedAt": "", "task": "zakup", "comment": "","expense": 0,"quantity": 0,"metalType": "stalowy"}
+{"cashStatus": 0, "originId": 1, "sumExpenseLast7Days": 0, "metalInStock": [{"metalTypeName": "kolorowy", "sumMetalIncome": 0}, {"metalTypeName": "stalowy", "sumMetalIncome": 0}], "expensesGroupByDay": [],"sumAdvancePaymentGroupByDay": [], "metalInStockGroupByDay": [], "sumIncomeGroupByDay": [], "sumCashStatusGroupByDay": []}
 ```
 ### Zapytanie DELETE
 `"/tasks/:id"`
@@ -66,6 +66,6 @@ Odpowiedzi są wysyłane w **formacie pliku JSON**
 
 >Przykładowa odpowiedź
 ```json
-{"id": 1, "actionDate": "01.01.1000", "createdAt": "[data dodana przez zapytanie POST]", "deletedAt": "[data dodana przez zaptanie DELETE]", "task": "zakup", "comment": "","expense": 0,"quantity": 0,"metalType": "stalowy"}
+{"id": 1, "actionDate": "01.01.1000", "createdAt": "[data dodana przez zapytanie POST]", "deletedAt": "[data dodana przez zaptanie DELETE]", "task": "zakup", "comment": "", "expense": 0, "quantity": 0, "metalType": "stalowy", "originId": 1}
 ```
 
