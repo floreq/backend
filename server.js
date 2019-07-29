@@ -57,7 +57,7 @@ function sendError(res, err) {
 function isValidDate(dateString) {
   // Validates that the input string is a valid date formatted as "mm.dd.yyyy"
   // First check for the pattern
-  if (!/^\d{1,2}\.\d{1,2}\.\d{4}$/.test(dateString)) return false;
+  if (!/^\d{2}\.\d{2}\.\d{4}$/.test(dateString)) return false;
   // Parse the date parts to integers
   var parts = dateString.split(".");
   var day = parseInt(parts[0], 10);
@@ -178,9 +178,6 @@ function selectQueries(reqId) {
       }
     });
   });
-
-  //SELECT substr(action_date, 7,4) || '-' || substr(action_date, 4, 2) || '-' || substr(action_date, 1, 2) as action_date  FROM tasks;
-  //SELECT substr(action_date, 7,4) || '-' || substr(action_date, 4, 2) || '-' || substr(action_date, 1, 2) as correct_date_format, SUM(tasks.expense) as sumExpense FROM tasks WHERE origin_id = 1 AND deleted_at IS NULL AND(task = "zakup" OR task = "wydatki") AND correct_date_format BETWEEN DATE('now', '-7 day') AND DATE('now')
 
   // Ile jest metalu
   const metalInStockSql =
