@@ -77,6 +77,7 @@ function isValidDate(dateString) {
 function isValidInsert(insertObject) {
   // Mozliwe do wyboru tasks/metalTypes
   const possibleTasks = ["zakup", "odbior", "zaliczka", "wplywy", "wydatki"];
+  const disabledFieldsIf = ["zaliczka", "wplywy", "wydatki"];
   const possibleMetalTypes = ["stalowy", "kolorowy"];
   const possibleOrigin = ["1", "2", "3"];
   let valid = true;
@@ -104,19 +105,27 @@ function isValidInsert(insertObject) {
           }
           break;
         case "expense":
-          if (!(typeof v === "string" && v !== "" && !isNaN(v))) {
+          if (!(typeof v === "string" && v !== "" && !isNaN(v) && v >= 0)) {
             valid = false;
             err = "Invalif expense";
           }
           break;
         case "quantity":
-          if (!(typeof v === "string" && !isNaN(v))) {
+          if (!(typeof v === "string" && !isNaN(v) && v >= 0)) {
             valid = false;
             err = "Invalif quantity";
           }
           break;
         case "metalType":
-          if (!(typeof v === "string" && possibleMetalTypes.includes(v))) {
+          // metalType musi byc typu string i zawierac sie w possibleMetalTypes
+          // lub zadanie (insertObject.task) musi zawierac sie w disabledFieldsIf i jednoczenie metalType musi byc ""
+          if (
+            !(
+              typeof v === "string" &&
+              (possibleMetalTypes.includes(v) ||
+                (disabledFieldsIf.includes(insertObject.task) && v === ""))
+            )
+          ) {
             valid = false;
             err = "Invalif metalType";
           }
@@ -264,7 +273,7 @@ function selectQueries(reqId) {
 
   // Suma stanu kasy zgrupowa dniami
   const cashStatusSqlGroupByDay =
-    'SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) || "-" || substr(action_date, 1, 2) as correctDateFormat, tasks.action_date as actionDate, ROUND(SUM(tasks.expense), 0) as cashStatus FROM tasks WHERE tasks.origin_id = ? AND (tasks.task != "zakup" AND tasks.task != "wydatki") AND deleted_at IS NULL AND metal_type = "stalowy" GROUP BY action_date UNION SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) || "-" || substr(action_date, 1, 2) as correctDateFornat, tasks.action_date as actionDate, ROUND(SUM(tasks.expense)*(-1), 0) as cashStatus FROM tasks WHERE tasks.origin_id = ? AND (tasks.task = "zakup" OR tasks.task = "wydatki") AND deleted_at IS NULL AND metal_type = "stalowy" GROUP BY action_date';
+    'SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) || "-" || substr(action_date, 1, 2) as correctDateFormat, tasks.action_date as actionDate, ROUND(SUM(tasks.expense), 0) as cashStatus FROM tasks WHERE tasks.origin_id = ? AND (tasks.task != "zakup" AND tasks.task != "wydatki") AND deleted_at IS NULL GROUP BY action_date UNION SELECT substr(action_date, 7,4) || "-" || substr(action_date, 4, 2) || "-" || substr(action_date, 1, 2) as correctDateFornat, tasks.action_date as actionDate, ROUND(SUM(tasks.expense)*(-1), 0) as cashStatus FROM tasks WHERE tasks.origin_id = ? AND (tasks.task = "zakup" OR tasks.task = "wydatki") AND deleted_at IS NULL GROUP BY action_date';
   // Zapytanie pobiera z bazy stan kasy zgrupowany dniami
   // Zapytanie nie jest idealny poniewaz zwraca, np. 21.07.2019, stan: 70 (przychod) i np. 21.07.2019, stan: -20 (wydatki, sa minusowe!), a nie juz gotowy stan kasy
   const sumCashStatusGroupByDay = new Promise((resolve, reject) => {
