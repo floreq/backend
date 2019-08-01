@@ -395,6 +395,17 @@ app.get("/workplaces/:id", (req, res) => {
     });
 });
 
+// app.get("/workplaces/", (req, res) => {
+//   selectQueries(1)
+//     .then(response => {
+//       res.writeHead(200, { "Content-Type": "application/json" });
+//       res.end(JSON.stringify(response));
+//     })
+//     .catch(err => {
+//       sendError(res, err);
+//     });
+// });
+
 // Zapytanie dopisujace dane do bazy
 // Dopisuje nowy rekord z dodaniem created_at
 app.post("/tasks/:id", (req, res) => {
@@ -478,9 +489,10 @@ app.delete("/tasks/:id", (req, res) => {
           "UPDATE tasks SET deleted_at = ? WHERE id = ?",
           updatedRow,
           function(err) {
-            // Zwrocenie id z ostatnio dodanego rekordu
+            // Zwrocenie id, wartosc jest juz znana. Poniewaz pole aktualizuje sie juz po id
+            // W tym wypadku reqId === id rekordu zmodyfikowanego
             if (err === null) {
-              resolve(this.lastID);
+              resolve(reqId);
             } else {
               reject(err);
             }
@@ -488,25 +500,29 @@ app.delete("/tasks/:id", (req, res) => {
         );
       }
     });
-  }).then(lastRowId => {
-    console.log(lastRowId);
-    const sql = "SELECT * FROM tasks ORDER BY id DESC";
+  })
+    .then(reqId => {
+      const sql = "SELECT * FROM tasks WHERE id=?";
 
-    // Pobranie z bazy calej tabeli
-    new Promise(resolve => {
-      // Przepisanie tabeli do tablicy
-      db.all(sql, [], (err, rows) => {
-        if (err) {
-          throw err;
-        }
-        resolve(dbTableToArray(rows));
+      // Pobranie z bazy zmodyfikowanego rekrodu
+      new Promise((resolve, reject) => {
+        // Przepisanie tabeli do tablicy
+        db.get(sql, reqId, (err, row) => {
+          if (err === null) {
+            resolve(dbTableToArray([row]));
+          } else {
+            reject(err);
+          }
+        });
+      }).then(tasks => {
+        // Odeslanie zaktualizowanych danych
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(tasks));
       });
-    }).then(tasks => {
-      // Odeslanie zaktualizowanych danych
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify(tasks));
+    })
+    .catch(err => {
+      sendError(res, err);
     });
-  });
 });
 
 const server = app.listen(port, () =>
