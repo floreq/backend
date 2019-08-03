@@ -395,16 +395,16 @@ app.get("/workplaces/:id", (req, res) => {
     });
 });
 
-// app.get("/workplaces/", (req, res) => {
-//   selectQueries(1)
-//     .then(response => {
-//       res.writeHead(200, { "Content-Type": "application/json" });
-//       res.end(JSON.stringify(response));
-//     })
-//     .catch(err => {
-//       sendError(res, err);
-//     });
-// });
+app.get("/workplaces/", (req, res) => {
+  Promise.all([selectQueries(1), selectQueries(2), selectQueries(3)])
+    .then(response => {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(response));
+    })
+    .catch(err => {
+      sendError(res, err);
+    });
+});
 
 // Zapytanie dopisujace dane do bazy
 // Dopisuje nowy rekord z dodaniem created_at
