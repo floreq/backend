@@ -79,7 +79,7 @@ function isValidInsert(insertObject) {
   const possibleTasks = ["zakup", "odbior", "zaliczka", "wplywy", "wydatki"];
   const disabledFieldsIf = ["zaliczka", "wplywy", "wydatki"];
   const possibleMetalTypes = ["stalowy", "kolorowy"];
-  const possibleOrigin = ["1", "2", "3"];
+  const possibleOrigin = ["1", "2", "3", "4"];
   let valid = true;
   let err;
 
@@ -396,7 +396,12 @@ app.get("/workplaces/:id", (req, res) => {
 });
 
 app.get("/workplaces/", (req, res) => {
-  Promise.all([selectQueries(1), selectQueries(2), selectQueries(3)])
+  Promise.all([
+    selectQueries(1),
+    selectQueries(2),
+    selectQueries(3),
+    selectQueries(4)
+  ])
     .then(response => {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify(response));
