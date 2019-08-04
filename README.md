@@ -45,9 +45,20 @@ Odpowiedzi są wysyłane w **formacie pliku JSON**
    
 >Przykładowa odpowiedź
 ```json
-{"sumExpense": 1, "originId": 1, "sumIncome": 1, "metalIncome": [{"metalTypeName": "kolorowy", "sumMetalIncome":1 }, {"metalTypeName": "stalowy", "sumMetalIncome": 4}], "metalCollection": [{"metalTypeName": "stalowy", "sumMetalIncome": 1}]}
+{"cashStatus": -1, "originId": 1, "sumExpenseLast7Days": 1, "metalInStock": [{"metalTypeName": "kolorowy", "sumMetalIncome": 0}, {"metalTypeName": "stalowy", "sumMetalIncome": 1}], "expensesGroupByDay": [{"correctDateFormat": "2019-08-04", "actionDate": "04.08.2019", "sumExpenses": 1}], "sumAdvancePaymentGroupByDay":[], "metalInStockGroupByDay":[{"correctDateFormat":"2019-08-04", "actionDate": "04.08.2019", "metalTypeName": "stalowy", "sumMetalInStock": 1}], "sumIncomeGroupByDay":[],"sumCashStatusGroupByDay":[{"correctDateFormat": "2019-08-04", "actionDate": "04.08.2019", "cashStatus": -1}], "sumAverageGroupByDay":[{"correctDateFormat": "2019-08","actionDate":"08.2019", "metalTypeName": "stalowy", "average": 1}]}
 ```
+---
 
+`"/workplaces/"`
+
+1. Zapytanie zwraca wszystkie możliwe **workplaces**
+
+>Przykładowa odpowiedź
+```json
+[{"cashStatus": -1, "originId": 1, "sumExpenseLast7Days": 1, "metalInStock": [{"metalTypeName": "kolorowy", "sumMetalIncome": 0}, {"metalTypeName": "stalowy", "sumMetalIncome": 1}], "expensesGroupByDay": [{"correctDateFormat": "2019-08-04", "actionDate": "04.08.2019", "sumExpenses": 1}], "sumAdvancePaymentGroupByDay":[], "metalInStockGroupByDay":[{"correctDateFormat":"2019-08-04", "actionDate": "04.08.2019", "metalTypeName": "stalowy", "sumMetalInStock": 1}], "sumIncomeGroupByDay":[],"sumCashStatusGroupByDay":[{"correctDateFormat": "2019-08-04", "actionDate": "04.08.2019", "cashStatus": -1}], "sumAverageGroupByDay":[{"correctDateFormat": "2019-08","actionDate":"08.2019", "metalTypeName": "stalowy", "average": 1}]}, 
+{"cashStatus": -2, "originId": 2, "sumExpenseLast7Days": 2 ,"metalInStock": [{"metalTypeName":"kolorowy","sumMetalIncome":3}, {"metalTypeName": "stalowy", "sumMetalIncome": 0}], "expensesGroupByDay": [{"correctDateFormat": "2019-08-03", "actionDate": "03.08.2019", "sumExpenses": 2}], "sumAdvancePaymentGroupByDay": [], "metalInStockGroupByDay": [{"correctDateFormat": "2019-08-03", "actionDate": "03.08.2019", "metalTypeName": "kolorowy", "sumMetalInStock": 3}],"sumIncomeGroupByDay": [],"sumCashStatusGroupByDay":[{"correctDateFormat": "2019-08-03", "actionDate": "03.08.2019", "cashStatus": -2}],"sumAverageGroupByDay":[{"correctDateFormat": "2019-08", "actionDate": "08.2019", "metalTypeName": "kolorowy", "average": 0.7}]}, 
+{"cashStatus": 0, "originId": 3 ,"sumExpenseLast7Days": 0 ,"metalInStock": [{"metalTypeName": "kolorowy", "sumMetalIncome": 0}, {"metalTypeName": "stalowy", "sumMetalIncome": 0}], "expensesGroupByDay": [], "sumAdvancePaymentGroupByDay": [], "metalInStockGroupByDay": [], "sumIncomeGroupByDay": [], "sumCashStatusGroupByDay": [], "sumAverageGroupByDay": []}]
+```
 ### Zapytanie POST
 `"/tasks"`
 
