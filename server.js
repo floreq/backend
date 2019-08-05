@@ -24,28 +24,6 @@ let db = new sqlite3.Database("frontendDB.sqlite3", err => {
   }
 });
 
-// 'SELECT tasks.origin_id AS originId, SUM(tasks.expense) AS sumExpense, SUM(tasks.quantity) AS sumQuantity FROM tasks JOIN origin ON tasks.origin_id = origin.id WHERE tasks.task = "zakup" GROUP BY tasks.origin_id'
-// 'SELECT origin_id AS originId, metal_type AS metalType, SUM(quantity) AS sumQuantity FROM tasks WHERE metal_type = "stalowy" GROUP BY origin_id UNION SELECT origin_id AS originId, metal_type AS metalType, SUM(quantity) AS sumQuantity FROM tasks WHERE metal_type = "kolorowy" GROUP BY origin_id'
-
-// Przepisanie tabeli z bazy do tablicy
-function dbTableToArray(rows) {
-  const tasks = rows.map(row => {
-    return {
-      id: row.id,
-      actionDate: row.action_date,
-      createdAt: row.created_at,
-      deletedAt: row.deleted_at,
-      task: row.task,
-      comment: row.comment,
-      expense: row.expense,
-      quantity: row.quantity,
-      metalType: row.metal_type,
-      originId: row.origin_id
-    };
-  });
-  return tasks;
-}
-
 function sendError(res, err) {
   console.error(err.message);
   console.trace();
@@ -99,7 +77,7 @@ function isValidInsert(insertObject) {
           }
           break;
         case "comment":
-          if (!(typeof v === "string")) {
+          if (!(typeof v === "string" && v.length <= 15)) {
             valid = false;
             err = "Invalif comment";
           }
@@ -360,13 +338,14 @@ function selectQueries(reqId) {
 
 // Zapytanie wyslajace cala liste tasks
 app.get("/tasks", (req, res) => {
-  const sql = "SELECT * FROM tasks ORDER BY id DESC";
+  const sql =
+    'SELECT id, action_date as actionDate, created_at as createdAt, deleted_at as deletedAt, task, comment, ROUND(expense, 2) as expense, (CASE WHEN quantity = "" THEN "" ELSE ROUND(quantity, 2) END) as quantity, metal_type as metalType, origin_id as originId FROM tasks ORDER BY id DESC';
   // Pobranie z bazy calej tabeli
   new Promise((resolve, reject) => {
     // Wykonanie operacji na tabeili
     db.all(sql, [], (err, rows) => {
       if (err === null) {
-        resolve(dbTableToArray(rows));
+        resolve(rows);
       } else {
         reject(err);
       }
@@ -451,13 +430,14 @@ app.post("/tasks/:id", (req, res) => {
       // Pobranie z bazy calej tabeli
       new Promise((resolve, reject) => {
         // W miejscu ? wpisywana jest wartosc lastRowId w funckji db.all
-        const sql = "SELECT * FROM tasks WHERE id = ?";
+        const sql =
+          'SELECT id, action_date as actionDate, created_at as createdAt, deleted_at as deletedAt, task, comment, ROUND(expense, 2) as expense, (CASE WHEN quantity = "" THEN "" ELSE ROUND(quantity, 2) END) as quantity, metal_type as metalType, origin_id as originId FROM tasks WHERE id = ?';
         // Przepisanie tabeli do tablicy
         db.all(sql, lastRowId, (err, rows) => {
           if (err) {
             reject(err);
           } else {
-            resolve(dbTableToArray(rows));
+            resolve(rows);
           }
         });
       })
@@ -507,14 +487,15 @@ app.delete("/tasks/:id", (req, res) => {
     });
   })
     .then(reqId => {
-      const sql = "SELECT * FROM tasks WHERE id=?";
+      const sql =
+        'SELECT id, action_date as actionDate, created_at as createdAt, deleted_at as deletedAt, task, comment, ROUND(expense, 2) as expense, (CASE WHEN quantity = "" THEN "" ELSE ROUND(quantity, 2) END) as quantity, metal_type as metalType, origin_id as originId FROM tasks WHERE id = ?';
 
       // Pobranie z bazy zmodyfikowanego rekrodu
       new Promise((resolve, reject) => {
         // Przepisanie tabeli do tablicy
         db.get(sql, reqId, (err, row) => {
           if (err === null) {
-            resolve(dbTableToArray([row]));
+            resolve(row);
           } else {
             reject(err);
           }
