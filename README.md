@@ -14,9 +14,9 @@ node server.js
 
 ## Możliwe zapytania do bazy
 
-Żądania są odbierane w **formacie obiektu JavaScript**
+Żądania są odbierane w **formacie obiektu JavaScript** tylko adresów z [Whitelisty](https://github.com/floreq/backend/blob/b32749f18db4208f49e90a45377dd7d3ec826763/server.js#L12).
 
-Odpowiedzi są wysyłane w **formacie pliku JSON**
+Odpowiedzi są wysyłane w **formacie pliku JSON**.
 
 ### Zapytania GET
 `"/tasks"`
